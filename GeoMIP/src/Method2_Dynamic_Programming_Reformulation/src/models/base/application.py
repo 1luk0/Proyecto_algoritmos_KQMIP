@@ -15,6 +15,7 @@ class Application:
         self.modo_estados = ACTIVOS
         self.distancia_metrica = MetricDistance.EMD_EFECTO.value
         self.profiler_habilitado = False
+        self.usar_optimizacion_genetica = True
 
     def set_notacion(self, tipo: Notation):
         self.notacion = tipo

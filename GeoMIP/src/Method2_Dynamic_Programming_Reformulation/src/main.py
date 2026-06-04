@@ -20,6 +20,8 @@ sys.path.insert(0, str(project_root))
 
 from src.controllers.manager import Manager
 from src.controllers.strategies.geometric import GeometricSIA
+from src.controllers.strategies.genetic_optimizer import GeneticKGeoMIP
+from src.models.base.application import aplicacion
 from src.controllers.strategies.q_nodes import QNodes
 # Optional import: this project often runs only geometric strategy.
 try:
@@ -47,12 +49,36 @@ def convertir_a_binario(texto, n_bits=20):
             binario[posiciones.index(letra)] = "1"
     return "".join(binario)
 
+
+def decidir_y_ejecutar_estrategia(config_sistema, condiciones, alcance, mecanismo, tpm, ks):
+    n_bits = len(config_sistema.estado_inicial)
+    estado_genetico = getattr(aplicacion, "usar_optimizacion_genetica", True)
+    
+    usar_gen = False
+    if estado_genetico is True:
+        usar_gen = True
+    elif estado_genetico is False:
+        usar_gen = False
+    elif estado_genetico == "auto":
+        if n_bits > 10:
+            usar_gen = True
+        else:
+            usar_gen = False
+            
+    if usar_gen:
+        print(f"Ejecutando análisis genético con GeneticKGeoMIP (N = {n_bits})...")
+        return GeneticKGeoMIP.optimize(config_sistema, condiciones, alcance, mecanismo, tpm, ks)
+    else:
+        print(f"Ejecutando análisis exacto con GeometricSIA (N = {n_bits})...")
+        analizador_geo = GeometricSIA(config_sistema)
+        return analizador_geo.aplicar_estrategia(condiciones, alcance, mecanismo, tpm, ks=ks)
+
+
 def ejecutar_con_tiempo(config_sistema, condiciones, alcance, mecanismo, resultado_queue, tpm, ks=None):
     try:
         if ks is None:
             ks = [2]
-        analizador_fi = GeometricSIA(config_sistema)
-        resultados_k = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo, tpm, ks=ks)
+        resultados_k = decidir_y_ejecutar_estrategia(config_sistema, condiciones, alcance, mecanismo, tpm, ks)
         # Convertir dict[k, Solution] a datos serializables
         datos = {}
         for k, sol in resultados_k.items():
@@ -226,15 +252,13 @@ def probar_todos_csv(ruta_salida: Path, nombre_csv_especifico: str = None):
             config_sistema = Manager(estado_inicial=estado_inicial)
 
             # Ejecutar análisis
-            print("Ejecutando análisis GeometricSIA...")
             import time
             start_time = time.time()
 
             max_k = min(n_bits, 5)
             ks_a_evaluar = list(range(2, max_k + 1))
             
-            analizador_geo = GeometricSIA(config_sistema)
-            resultados_k = analizador_geo.aplicar_estrategia(condiciones, alcance, mecanismo, tpm, ks=ks_a_evaluar)
+            resultados_k = decidir_y_ejecutar_estrategia(config_sistema, condiciones, alcance, mecanismo, tpm, ks=ks_a_evaluar)
             
             end_time = time.time()
             tiempo_real = end_time - start_time
