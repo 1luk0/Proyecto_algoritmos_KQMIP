@@ -352,30 +352,33 @@ class QNodes(SIA):
         dims_mecanismo_delta = self.clave_submodular[ACTUAL]
 
         if clave_delta not in self.memoria_delta:
-            particion_delta = self.sia_subsistema.bipartir(
-                np.array(idxs_alcance_delta, dtype=np.int8),
-                np.array(dims_mecanismo_delta, dtype=np.int8),
+            vector_delta_marginal = self.sia_subsistema.bipartir_dist(
+                idxs_alcance_delta,
+                dims_mecanismo_delta,
             )
-            vector_delta_marginal = particion_delta.distribucion_marginal()
             emd_delta = emd_efecto(vector_delta_marginal, self.sia_dists_marginales)
             self.memoria_delta[clave_delta] = emd_delta, vector_delta_marginal
 
         else:
             emd_delta, vector_delta_marginal = self.memoria_delta[clave_delta]
 
-        # Unión #
-
+        # Unión: acumular sin ordenar en cada omega, ordenar una sola vez al final
         for omega in omegas:
-            self.definir_clave(omega)
+            if isinstance(omega, tuple):
+                self.clave_submodular[omega[0]].append(omega[1])
+            else:
+                for t, idx in omega:
+                    self.clave_submodular[t].append(idx)
+        self.clave_submodular[ACTUAL].sort()
+        self.clave_submodular[EFFECT].sort()
 
         idxs_alcance_union = self.clave_submodular[EFFECT]
         dims_mecanismo_union = self.clave_submodular[ACTUAL]
 
-        particion_union = self.sia_subsistema.bipartir(
-            np.array(idxs_alcance_union, dtype=np.int8),
-            np.array(dims_mecanismo_union, dtype=np.int8),
+        vector_union_marginal = self.sia_subsistema.bipartir_dist(
+            idxs_alcance_union,
+            dims_mecanismo_union,
         )
-        vector_union_marginal = particion_union.distribucion_marginal()
         emd_union = emd_efecto(vector_union_marginal, self.sia_dists_marginales)
 
         return emd_union, emd_delta, vector_delta_marginal

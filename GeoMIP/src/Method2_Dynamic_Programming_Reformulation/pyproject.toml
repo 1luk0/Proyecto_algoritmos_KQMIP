@@ -11,5 +11,8 @@ dependencies = [
     "pandas>=2.3.3",
     "pyinstrument>=5.1.2",
     "pyphi>=1.2.0",
+    "pysimplegui>=6.0",
     "pyttsx3>=2.99",
 ]
+[project.optional-dependencies]
+gui = ["pysimplegui>=4.60", "openpyxl>=3.1"]

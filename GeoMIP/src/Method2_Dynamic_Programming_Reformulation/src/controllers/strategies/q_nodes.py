@@ -107,8 +107,7 @@ class QNodes(SIA):
         self.tiempos: tuple[np.ndarray, np.ndarray]
         self.etiquetas = [tuple(s.lower() for s in ABECEDARY), ABECEDARY]
         self.vertices: set[tuple]
-        # self.memoria_delta = dict()
-        self.memoria_omega = dict()
+        self.memoria_delta = dict()
         self.memoria_particiones = dict()
 
         self.indices_alcance: np.ndarray
@@ -128,7 +127,7 @@ class QNodes(SIA):
         if ks is None:
             ks = [2]
 
-        self.sia_preparar_subsistema(condicion, alcance, mecanismo)
+        self.sia_preparar_subsistema(condicion, alcance, mecanismo, tpm)
 
         futuro = tuple(
             (EFECTO, efecto) for efecto in self.sia_subsistema.indices_ncubos
@@ -355,12 +354,17 @@ class QNodes(SIA):
         dims_alcance_delta = temporal[EFECTO]
         dims_mecanismo_delta = temporal[ACTUAL]
 
-        particion_delta = copia_delta.bipartir(
-            np.array(dims_alcance_delta, dtype=np.int8),
-            np.array(dims_mecanismo_delta, dtype=np.int8),
-        )
-        vector_delta_marginal = particion_delta.distribucion_marginal()
-        emd_delta = emd_efecto(vector_delta_marginal, self.sia_dists_marginales)
+        delta_key = (frozenset(dims_alcance_delta), frozenset(dims_mecanismo_delta))
+        if delta_key in self.memoria_delta:
+            emd_delta, vector_delta_marginal = self.memoria_delta[delta_key]
+        else:
+            particion_delta = copia_delta.bipartir(
+                np.array(dims_alcance_delta, dtype=np.int8),
+                np.array(dims_mecanismo_delta, dtype=np.int8),
+            )
+            vector_delta_marginal = particion_delta.distribucion_marginal()
+            emd_delta = emd_efecto(vector_delta_marginal, self.sia_dists_marginales)
+            self.memoria_delta[delta_key] = (emd_delta, vector_delta_marginal)
 
         # Unión #
 

@@ -20,6 +20,10 @@ env/
 # Bloquear reportes y hojas de cálculo pesadas
 GeoMIP/results/*.xlsx
 GeoMIP/results/*.csv
+results/
+
+# Scripts temporales
+compare_fix.py
 
 # ==========================================
 # REGLAS ESTÁNDAR DE PYTHON E IDEs

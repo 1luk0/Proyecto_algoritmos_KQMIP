@@ -1,10 +1,8 @@
-import heapq
-from src.constants.error import ERROR_INCOMPATIBLE_SIZES
 from src.models.core.system import System
-from src.constants.base import NET_LABEL, STR_ZERO
+from src.constants.base import NET_LABEL
 from src.funcs.base import ABECEDARY
 from src.middlewares.slogger import SafeLogger
-from src.funcs.base import emd_efecto
+from src.funcs.base import emd_efecto, seleccionar_subestado
 from src.models.base.sia import SIA
 from src.constants.base import (
     ACTUAL,
@@ -17,15 +15,12 @@ from src.constants.models import (
     GEOMETRIC_STRAREGY_TAG,
 )
 from src.controllers.manager import Manager
-from src.funcs.format import fmt_biparte_q, fmt_k_parte_q
+from src.funcs.format import fmt_k_parte_q
 from src.middlewares.profile import profiler_manager, profile
 from src.models.core.solution import Solution
 import numpy as np
 import time
 from typing import List, Dict, Tuple
-
-from concurrent.futures import ThreadPoolExecutor
-import itertools
 
 class GeometricSIA(SIA):
     def __init__(self, gestor: Manager):
@@ -35,10 +30,9 @@ class GeometricSIA(SIA):
         )
         self.etiquetas = [tuple(s.lower() for s in ABECEDARY), ABECEDARY]
         self.logger = SafeLogger(GEOMETRIC_STRAREGY_TAG)
-        self.tabla_transiciones: dict ={}
-        self.vertices :set[tuple]
-        self.tabla :dict[int, list[tuple[int, int]]] = {}
-        self.memoria_particiones: dict[tuple[int, int], tuple[float, float]] = {}
+        self.tabla_transiciones: dict = {}
+        self.vertices: set[tuple]
+        self.memoria_particiones: dict = {}
 
     @profile(context={TYPE_TAG: GEOMETRIC_ANALYSIS_TAG})
     def aplicar_estrategia(
@@ -61,9 +55,7 @@ class GeometricSIA(SIA):
             (ACTUAL, actual) for actual in self.sia_subsistema.dims_ncubos
         )
 
-        self._flat_data = []
-        for idx, ncubo in enumerate(self.sia_subsistema.ncubos):
-            self._flat_data.append(ncubo.data.ravel())
+        self._flat_data = np.stack([ncubo.data.ravel() for ncubo in self.sia_subsistema.ncubos])
 
         self.vertices = set(presente + futuro)
         dims = self.sia_subsistema.dims_ncubos
@@ -101,9 +93,15 @@ class GeometricSIA(SIA):
             self.calcular_costos_nivel(estado_final,nivel)
 
         candidatos_bi = self.identificar_particiones_optimas()
-        todos_presentes = list(range(len(self.sia_subsistema.dims_ncubos)))
-        todos_futuros  = list(range(len(self.sia_subsistema.indices_ncubos)))
-        n_futuros = len(todos_futuros)
+
+        # Representación plana de vértices para bipartición recursiva (k > 2)
+        vertices_all = (
+            [(ACTUAL, idx) for idx in self.sia_subsistema.dims_ncubos] +
+            [(EFECTO, idx) for idx in self.sia_subsistema.indices_ncubos]
+        )
+        N_v    = len(vertices_all)
+        vtypes = np.array([v[0] for v in vertices_all], dtype=np.int8)
+        vidxs  = np.array([v[1] for v in vertices_all], dtype=np.int8)
 
         resultados = {}
 
@@ -115,53 +113,101 @@ class GeometricSIA(SIA):
                 for presentes, futuros in candidatos_bi:
                     presentes_idx = self.sia_subsistema.dims_ncubos[presentes]
                     futuros_idx   = self.sia_subsistema.indices_ncubos[futuros]
+                    complement_futuros_idx   = np.setdiff1d(self.sia_subsistema.indices_ncubos, futuros_idx)
+                    complement_presentes_idx = np.setdiff1d(self.sia_subsistema.dims_ncubos, presentes_idx)
                     dist = self.sia_subsistema.bipartir(futuros_idx, presentes_idx).distribucion_marginal()
                     emd  = emd_efecto(dist, self.sia_dists_marginales)
                     key  = tuple([(0, n) for n in presentes_idx] + [(1, n) for n in futuros_idx])
-                    self.memoria_particiones[key] = (emd, dist)
+                    P1 = [(1, n) for n in futuros_idx] + [(0, n) for n in presentes_idx]
+                    P2 = [(1, n) for n in complement_futuros_idx] + [(0, n) for n in complement_presentes_idx]
+                    self.memoria_particiones[key] = (emd, dist, [P1, P2])
             else:
-                # Generar candidatos k-arios partiendo los futuros en k grupos
-                # Usamos las primeras combinaciones de tamaño k-1 como "cortes" de los índices futuros
-                for combo in itertools.combinations(range(1, n_futuros), k - 1):
-                    # Dividir futuros en k grupos en base a los puntos de corte
-                    cortes = [0] + list(combo) + [n_futuros]
-                    grupos_futuros = [
-                        todos_futuros[cortes[i]:cortes[i+1]] for i in range(k)
-                    ]
-                    # Todos los presentes van al primer grupo (enfoque geométrico conservador)
-                    partes_sistema = [
-                        (
-                            np.array(self.sia_subsistema.indices_ncubos[gf], dtype=np.int8),
-                            np.array(todos_presentes, dtype=np.int8) if gi == 0 else np.array([], dtype=np.int8),
-                        )
-                        for gi, gf in enumerate(grupos_futuros)
-                    ]
-                    sistema_k = self.sia_subsistema.k_partir(partes_sistema)
-                    dist = sistema_k.distribucion_marginal()
-                    emd  = emd_efecto(dist, self.sia_dists_marginales)
-                    key_nodos = []
-                    for gi, gf in enumerate(grupos_futuros):
-                        pres = todos_presentes if gi == 0 else []
-                        for n in pres:
-                            key_nodos.append((0, self.sia_subsistema.dims_ncubos[n]))
-                        for n in gf:
-                            key_nodos.append((1, self.sia_subsistema.indices_ncubos[n]))
-                    key = tuple(key_nodos)
-                    self.memoria_particiones[key] = (emd, dist)
+                # Bipartición recursiva greedy con evaluación marginal incremental para k > 2.
+                # En vez de llamar k_partir + distribucion_marginal por cada candidato,
+                # se mantiene base_dist y solo se actualizan los NCubes afectados por el split.
+                ncubo_list = self.sia_subsistema.ncubos
+                estado     = self.sia_subsistema.estado_inicial
+                n_ncubos   = len(ncubo_list)
+                ncube_pos  = {nc.indice: i for i, nc in enumerate(ncubo_list)}
+
+                def ncube_valor(nc, mec_set):
+                    marg = nc.marginalizar(np.setdiff1d(nc.dims, list(mec_set)))
+                    if marg.dims.size:
+                        return 1.0 - float(marg.data[seleccionar_subestado(
+                            tuple(estado[j] for j in marg.dims)
+                        )])
+                    return 1.0 - float(marg.data)
+
+                def build_group_info(grps):
+                    g_alc, g_mec, nc_grp = [], [], {}
+                    for g, gv in enumerate(grps):
+                        alc, mec = [], set()
+                        for pos in gv:
+                            if vtypes[pos] == EFECTO:
+                                alc.append(int(vidxs[pos]))
+                                nc_grp[int(vidxs[pos])] = g
+                            else:
+                                mec.add(int(vidxs[pos]))
+                        g_alc.append(alc)
+                        g_mec.append(frozenset(mec))
+                    return g_alc, g_mec, nc_grp
+
+                def eval_isolate(pos, gi, base_dist, g_alc, g_mec):
+                    new_dist = base_dist.copy()
+                    v_time   = int(vtypes[pos])
+                    v_idx    = int(vidxs[pos])
+                    if v_time == EFECTO:
+                        nc_i = ncube_pos[v_idx]
+                        new_dist[nc_i] = ncube_valor(ncubo_list[nc_i], frozenset())
+                    else:
+                        new_mec = g_mec[gi] - {v_idx}
+                        for nc_idx in g_alc[gi]:
+                            nc_i = ncube_pos[nc_idx]
+                            new_dist[nc_i] = ncube_valor(ncubo_list[nc_i], new_mec)
+                    return emd_efecto(new_dist, self.sia_dists_marginales), new_dist
+
+                groups = [list(range(N_v))]
+                g_alc, g_mec, nc_grp = build_group_info(groups)
+                base_dist = np.array(
+                    [ncube_valor(nc, g_mec[nc_grp[nc.indice]]) for nc in ncubo_list],
+                    dtype=np.float32,
+                )
+                best_emd_k, best_dist_k = float('inf'), None
+
+                for _ in range(k - 1):
+                    best_split, best_ng, best_new_base = float('inf'), None, None
+
+                    for gi, group in enumerate(groups):
+                        if len(group) < 2:
+                            continue
+                        for pos in group:
+                            emd, new_dist = eval_isolate(pos, gi, base_dist, g_alc, g_mec)
+                            if emd < best_split:
+                                best_split    = emd
+                                best_new_base = new_dist
+                                ng = [g[:] for g in groups]
+                                ng[gi] = [p for p in group if p != pos]
+                                ng.append([pos])
+                                best_ng = ng
+
+                    groups     = best_ng
+                    best_emd_k = best_split
+                    best_dist_k = best_new_base
+                    g_alc, g_mec, nc_grp = build_group_info(groups)
+                    base_dist = best_new_base
+
+                partes_display = [
+                    [vertices_all[vv] for vv in gv]
+                    for gv in groups
+                ]
+                key = tuple(v for gv in groups for v in [vertices_all[vv] for vv in gv])
+                self.memoria_particiones[key] = (best_emd_k, best_dist_k, partes_display)
 
             if not self.memoria_particiones:
                 continue
 
             mip_k = min(self.memoria_particiones, key=lambda k2: self.memoria_particiones[k2][0])
-
-            # Reconstruir partes para el formato visual
-            grupos: dict[int, list] = {}
-            for tiempo, nodo in mip_k:
-                grupos.setdefault(tiempo, []).append((tiempo, nodo))
-            partes_fmt = list(grupos.values())
-            if len(partes_fmt) < k:
-                partes_fmt += [[] for _ in range(k - len(partes_fmt))]
-
+            partes_fmt = self.memoria_particiones[mip_k][2]
             fmt_k = fmt_k_parte_q(partes_fmt)
 
             resultados[k] = Solution(
@@ -204,110 +250,62 @@ class GeometricSIA(SIA):
                   camino optimo desde i
         """
         key = tuple(estado_inicial), tuple(estado_final)
-        if key not in self.tabla_transiciones:
-            self.tabla_transiciones[key] = [None]*len(self.sia_subsistema.indices_ncubos)
         distancia_hamming = self.hamming(estado_inicial, estado_final)
-        factor = 1/(2**distancia_hamming)
-        # index_inicial = tuple(np.array(estado_inicial)[::-1])
-        # index_final = tuple(np.array(estado_final)[::-1])
-
+        factor = 1 / (2 ** distancia_hamming)
 
         estado_ini_int = int("".join(map(str, estado_inicial[::-1])), 2)
         estado_fin_int = int("".join(map(str, estado_final[::-1])), 2)
 
-        # Con eso, cada flat_data[idx][...] ya te da directamente X[i] o X[j].
-        diffs = np.abs(
-            np.array([flat[estado_ini_int] for flat in self._flat_data])
-        - np.array([flat[estado_fin_int] for flat in self._flat_data])
-        )
+        diffs = np.abs(self._flat_data[:, estado_ini_int] - self._flat_data[:, estado_fin_int])
         self.tabla_transiciones[key] = diffs.tolist()
-        # for idx in ncubos:
-        #     self.tabla_transiciones[key][idx] = (abs(self.sia_subsistema.ncubos[idx].data[index_inicial]-self.sia_subsistema.ncubos[idx].data[index_final]))
-        
+
         if distancia_hamming > 1:
             for i in range(len(estado_inicial)):
                 if estado_inicial[i] != estado_final[i]:
                     nuevo_estado = estado_final.copy()
                     nuevo_estado[i] = estado_inicial[i]
-                    nuevo_estado_tuple = tuple(nuevo_estado)
-                    temp_key = tuple(estado_inicial), nuevo_estado_tuple
+                    temp_key = tuple(estado_inicial), tuple(nuevo_estado)
                     for n in ncubos:
-                        self.tabla_transiciones[key][n] = self.tabla_transiciones[key][n] + self.tabla_transiciones[temp_key][n]
-        tmp =[]
-        for i,n in enumerate(self.tabla_transiciones[key]):
-            if n is not None:
-                tmp.append(factor * n)
-            else:
-                tmp.append(n)
-        self.tabla_transiciones[key] = tmp
+                        self.tabla_transiciones[key][n] += self.tabla_transiciones[temp_key][n]
+
+        self.tabla_transiciones[key] = [factor * n for n in self.tabla_transiciones[key]]
 
     def identificar_particiones_optimas(self):
         """
         Identifica las particiones óptimas basadas en los costos de transición
         y las distancias Hamming entre los estados.
         """
-        # idx_nivel_cero = 0
-        # idx_nivel_cero_2 = 1
-        # costo=1e5
-        key = tuple(self.caminos[0][0]), tuple(self.estado_final)
-        costos: list = self.tabla_transiciones[key]
-        # print(f"costos nivel cero {costos}")
-        # for idx, valor in enumerate(costos):
-        #     if valor < costo:
-        #         costo = valor
-        #         idx_nivel_cero = idx
-        # presentes_nivel_cero = [i for i in range(len(self.estado_final))]
-        # furutros_nivel_cero = [i for i in range(len(self.sia_subsistema.indices_ncubos)) if i != idx_nivel_cero]
-        # candidatos = [[presentes_nivel_cero, furutros_nivel_cero]]
-        # pares = [(valor, idx) for idx, valor in enumerate(costos)]
-        # menores = heapq.nsmallest(len(self.estado_inicial), pares, key=lambda x: x[0])
-        candidatos = []
-        n_vars = len(costos)
-        for idx in range(n_vars):
-            presentes = [i for i in range(len(self.estado_final))]
-            futuros = [i for i in range(n_vars) if i != idx]
-            candidatos.append([presentes, futuros])
-        # _, idx_nivel_cero_1 = dos_menores[0]
-        # _, idx_nivel_cero_2 = dos_menores[1]
-        # print(idx_nivel_cero_1, idx_nivel_cero_2)
-        # presentes_1 = [i for i in range(n_vars)]
-        # futuros_1  = [i for i in range(n_vars) if i != idx_nivel_cero_1]
-        # presentes_2 = [i for i in range(n_vars)]
-        # futuros_2  = [i for i in range(n_vars) if i != idx_nivel_cero_2]
-        # candidatos = [
-        #     [presentes_1, futuros_1],
-        #     [presentes_2, futuros_2]
-        # ]
-        # print(f"candidatos nivel cero {candidatos}")
-        es_par = len(self.caminos) % 2 == 0
-        if es_par:
-            mitad = len(self.caminos) // 2
-        else:
-            mitad = (len(self.caminos) // 2) + 1
-        for nivel in range(1,mitad):
-            # candidato_nivel = self.caminos[nivel][0]
-            costo_candidato_nivel = 1e5
+        n_vars = len(self.tabla_transiciones[tuple(self.caminos[0][0]), tuple(self.estado_final)])
+
+        candidatos = [
+            [list(range(len(self.estado_final))), [i for i in range(n_vars) if i != idx]]
+            for idx in range(n_vars)
+        ]
+
+        mitad = (len(self.caminos) // 2) + (len(self.caminos) % 2)
+        for nivel in range(1, mitad):
+            costo_candidato_nivel = np.inf
             presentes_nivel = []
             futuros_nivel = []
             for estado in self.caminos[nivel]:
-                # candidato = estado
+                actual = self.tabla_transiciones.get((tuple(self.caminos[0][0]), tuple(estado)))
+                estado_complementario = (1 - np.array(estado)).tolist()
+                complementario = self.tabla_transiciones.get((tuple(self.caminos[0][0]), tuple(estado_complementario)))
+                if actual is None or complementario is None:
+                    continue
                 costo_candidato = 0
                 presentes = []
                 futuros = []
-                actual = self.tabla_transiciones.get((tuple(self.caminos[0][0]), tuple(estado)), None)
-                estado_complementario = (1-np.array(estado)).tolist()
-                complementario = self.tabla_transiciones.get((tuple(self.caminos[0][0]), tuple(estado_complementario)), None)
-                for idx,i in enumerate(estado):
+                for idx, i in enumerate(estado):
                     if i == self.caminos[0][0][idx]:
                         presentes.append(idx)
-                for idx,_ in enumerate(self.idx_ncubos):
+                for idx in range(len(self.idx_ncubos)):
                     if actual[idx] <= complementario[idx]:
                         futuros.append(idx)
                         costo_candidato += actual[idx]
                     else:
                         costo_candidato += complementario[idx]
                 if costo_candidato < costo_candidato_nivel:
-                    # candidato_nivel = candidato
                     costo_candidato_nivel = costo_candidato
                     presentes_nivel = presentes
                     futuros_nivel = futuros

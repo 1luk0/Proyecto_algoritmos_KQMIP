@@ -154,17 +154,10 @@ class BruteForce(SIA):
         Se prepara el directorio de salida donde almacenaremos el análisis completo de una red específica.
         Este análisis consiste de para una red de N elementos en dos tiempos `t_0` y `t_1` para un único estado inicial, se crean todos los `{2^N}-1` factibles sistemas candidatos, posteriormente a cada uno sus `2^{m+n}` posibles biparticiones, excluyendo escenarios con alcances vacíos y finalmente cada bipartición de las `2^{m+n-1}-1` factibles.
         """
-        self.tpm.output_dir.mkdir(parents=True, exist_ok=True)
-
-        tpm = self.sia_cargar_tpm()
-        initial_state = self.sia_subsistema.estado_inicial
-        system = System(tpm, initial_state)
-        self.__analizar_candidatos(system)
-        print(f"""
-{Fore.RED}Generación finalizada!{Fore.BLUE}\nRevisa tu directorio `review/resolver/`.
-{Fore.WHITE}Tamaño de la red: {initial_state.size} nodos.
-Estado incial: {initial_state}.
-""")
+        raise NotImplementedError(
+            "analizar_completamente_una_red no es compatible con QNodes: "
+            "self.tpm es np.ndarray (no un Manager) y sia_cargar_tpm no existe en esta clase."
+        )
 
     def __analizar_candidatos(self, sistema: System) -> None:
         """

@@ -258,12 +258,60 @@ class System:
                 else cubo.marginalizar(mecanismo)
                 for cubo in self.ncubos
             )
-        else:
-            self.memo[clave] = self.memo[clave]
-
         nuevo_sistema.ncubos = self.memo[clave]
 
         return nuevo_sistema
+
+    def bipartir_dist(
+        self,
+        alcance,
+        mecanismo,
+    ) -> NDArray[np.float32]:
+        """
+        Fusión de bipartir + distribucion_marginal sin crear System ni NCube intermedios.
+        Acepta listas Python o numpy arrays para alcance/mecanismo.
+        Pre-computa ejes e índices de estado una vez por grupo y accede al memo de NCube
+        directamente para evitar la creación de wrappers NCube en cada llamada.
+        """
+        n = len(self.ncubos)
+        resultado = np.empty(n, dtype=np.float32)
+        if n == 0:
+            return resultado
+
+        # set() funciona directo con listas Python o numpy arrays (np.int8 y int son iguales como claves)
+        alcance_set   = set(alcance)
+        mecanismo_set = set(mecanismo)
+        all_dims = self.ncubos[0].dims
+
+        # Una sola pasada; d es np.int8 de all_dims, funciona directo en mecanismo_set
+        dims_in, dims_out = [], []
+        for d in all_dims:
+            if d in mecanismo_set:
+                dims_in.append(d)
+            else:
+                dims_out.append(d)
+
+        # dims_out es lista de np.int8 — se pasa directo a marginalizar sin crear numpy array extra
+        ejes_in_key  = tuple(dims_out)  # np.int8 tuple, compatible con memo de NCube
+        ejes_out_key = tuple(mecanismo) # funciona con lista o ndarray
+
+        # Pre-computar índices de estado por grupo
+        idx_in  = seleccionar_estado(tuple(self.estado_inicial[j] for j in dims_in))  if dims_in  else ()
+        idx_out = seleccionar_estado(tuple(self.estado_inicial[j] for j in dims_out)) if dims_out else ()
+
+        for i, cubo in enumerate(self.ncubos):
+            if cubo.indice in alcance_set:
+                if ejes_in_key and ejes_in_key not in cubo.memo:
+                    cubo.marginalizar(dims_out)
+                data = cubo.memo[ejes_in_key][0] if ejes_in_key else cubo.data
+                resultado[i] = float(data[idx_in])
+            else:
+                if ejes_out_key and ejes_out_key not in cubo.memo:
+                    cubo.marginalizar(mecanismo)
+                data = cubo.memo[ejes_out_key][0] if ejes_out_key else cubo.data
+                resultado[i] = float(data[idx_out])
+
+        return resultado
 
     def k_partir(
         self,
