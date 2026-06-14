@@ -2,9 +2,9 @@
 Orquestador de pruebas por lotes.
 
 Uso:
-  python tests/run_batch.py --sheet 10A --desde 1 --hasta 25 --strategy qnodes
-  python tests/run_batch.py --sheet 25A --strategy geomip --safe-only
-  python tests/run_batch.py --sheet 15B --strategy qnodes  --ks 2 3 4 5 --timeout 300
+  python scripts/run_batch.py --sheet 10A --desde 1 --hasta 25 --strategy qnodes
+  python scripts/run_batch.py --sheet 25A --strategy geomip --safe-only
+  python scripts/run_batch.py --sheet 15B --strategy qnodes  --ks 2 3 4 5 --timeout 300
 
 Argumentos:
   --sheet      Hoja del Excel: 10A | 15B | 20A | 22A | 25A

@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 import numpy as np
 
-GEOMIP_ROOT = Path(__file__).resolve().parents[1] / "GeoMIP" / "src" / "Method2_Dynamic_Programming_Reformulation"
+GEOMIP_ROOT = Path(__file__).resolve().parents[1] / "GeoMIP" / "src" / "kgeomip"
 sys.path.insert(0, str(GEOMIP_ROOT))
 
 N = 10
