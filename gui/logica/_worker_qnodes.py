@@ -25,7 +25,7 @@ mecanismo_bin  = params["mecanismo_bin"]
 ks             = params["ks"]
 semilla        = params["semilla"]
 
-QNODES_ROOT = Path(__file__).resolve().parents[1] / "QNodes"
+QNODES_ROOT = Path(__file__).resolve().parents[2] / "QNodes"
 sys.path.insert(0, str(QNODES_ROOT))
 
 if "tpm_data" in params:

@@ -383,7 +383,7 @@ class App(ctk.CTk):
         left.pack(side="left", anchor="n")
         ctk.CTkLabel(left, text="ALGORITMO", font=CAP, text_color=FG2
                      ).pack(anchor="w", pady=(0, 10))
-        for txt, val in [("KQNodes", "qnodes"), ("KGeoMIP", "geomip")]:
+        for txt, val in [("KQNodes", "qnodes"), ("KGeoMIP", "geomip"), ("GeoMIP Genético", "geomip-genetico")]:
             ctk.CTkRadioButton(
                 left, text=txt, variable=self.algo, value=val,
                 font=SANS, text_color=FG,
@@ -766,7 +766,7 @@ class App(ctk.CTk):
 
     def _format_result(self, result: RunResult) -> str:
         p     = result.params
-        algo  = "KGEOMIP" if p.algo == "geomip" else "KQNODES"
+        algo  = {"qnodes": "KQNODES", "geomip": "KGEOMIP", "geomip-genetico": "GEOMIP GENÉTICO"}.get(p.algo, p.algo.upper())
         lines = [
             f"PRUEBA #{p.prueba_num}  ·  alc: {p.alcance_label}  ·  mec: {p.mecanismo_label}",
             f"ALGORITMO: {algo}  ·  tiempo total: {result.elapsed:.2f} s",

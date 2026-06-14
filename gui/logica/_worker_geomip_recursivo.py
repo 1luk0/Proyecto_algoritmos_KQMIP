@@ -25,7 +25,7 @@ ks             = params["ks"]
 semilla        = params["semilla"]
 
 GEOMIP_ROOT = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "GeoMIP" / "src" / "Method2_Dynamic_Programming_Reformulation"
 )
 sys.path.insert(0, str(GEOMIP_ROOT))

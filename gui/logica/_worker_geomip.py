@@ -1,6 +1,6 @@
 """
-Worker de GeoMIP Genético. Recibe parámetros JSON por argv[1], imprime resultado JSON a stdout.
-Ejecutado como subprocess aislado por run_batch.py.
+Worker de GeoMIP Genético (GeneticKGeoMIP). Recibe parámetros JSON por argv[1],
+imprime resultado JSON a stdout. Ejecutado como subprocess aislado.
 """
 import json
 import sys
@@ -10,8 +10,14 @@ import numpy as np
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-params = json.loads(sys.argv[1])
-N             = params["N"]
+_arg = sys.argv[1]
+if _arg.startswith("@"):
+    with open(_arg[1:], encoding="utf-8") as _f:
+        params = json.loads(_f.read())
+else:
+    params = json.loads(_arg)
+
+N              = params["N"]
 estado_inicial = params["estado_inicial"]
 condicion_bin  = params["condicion_bin"]
 alcance_bin    = params["alcance_bin"]
@@ -20,20 +26,22 @@ ks             = params["ks"]
 semilla        = params["semilla"]
 
 GEOMIP_ROOT = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "GeoMIP" / "src" / "Method2_Dynamic_Programming_Reformulation"
 )
 sys.path.insert(0, str(GEOMIP_ROOT))
 
-np.random.seed(semilla)
-tpm = np.random.randint(2, size=(2**N, N), dtype=np.int8).astype(float)
+if "tpm_data" in params:
+    tpm = np.array(params["tpm_data"]).reshape(2**N, N).astype(float)
+else:
+    np.random.seed(semilla)
+    tpm = np.random.randint(2, size=(2**N, N), dtype=np.int8).astype(float)
 
 from src.controllers.manager import Manager
 from src.controllers.strategies.genetic_optimizer import GeneticKGeoMIP
 
 gestor = Manager(estado_inicial=estado_inicial)
-resultados = GeneticKGeoMIP.optimize(
-    gestor=gestor,
+resultados = GeneticKGeoMIP(gestor).aplicar_estrategia(
     condicion=condicion_bin,
     alcance=alcance_bin,
     mecanismo=mecanismo_bin,

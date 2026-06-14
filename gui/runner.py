@@ -11,9 +11,10 @@ from typing import Callable, Optional
 
 import numpy as np
 
-ROOT          = Path(__file__).resolve().parent
-WORKER_QNODES = ROOT / "logica" / "_worker_qnodes.py"
-WORKER_GEOMIP = ROOT / "logica" / "_worker_geomip_recursivo.py"
+ROOT                  = Path(__file__).resolve().parent
+WORKER_QNODES         = ROOT / "logica" / "_worker_qnodes.py"
+WORKER_GEOMIP         = ROOT / "logica" / "_worker_geomip_recursivo.py"
+WORKER_GEOMIP_GENETICO = ROOT / "logica" / "_worker_geomip.py"
 ABECEDARY     = "ABCDEFGHIJKLMNOPQRSTUVWXY"
 
 
@@ -206,7 +207,12 @@ class Runner:
 
         def _worker():
             import os, tempfile
-            script  = str(WORKER_QNODES if params.algo == "qnodes" else WORKER_GEOMIP)
+            if params.algo == "qnodes":
+                script = str(WORKER_QNODES)
+            elif params.algo == "geomip-genetico":
+                script = str(WORKER_GEOMIP_GENETICO)
+            else:
+                script = str(WORKER_GEOMIP)
             payload = json.dumps(params.to_payload(), ensure_ascii=False)
             t0      = time.time()
 
