@@ -25,9 +25,9 @@ from src.constants.base import (
 )
 
 
-class QNodes(SIA):
+class KQNodes(SIA):
     """
-    Clase QNodes para el análisis de redes mediante el algoritmo Q.
+    Clase KQNodes para el análisis de redes mediante el algoritmo Q con k-particiones.
 
     Esta clase implementa un gestor principal para el análisis de redes que utiliza
     el algoritmo Q para encontrar la partición óptima que minimiza la

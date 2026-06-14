@@ -22,7 +22,7 @@ import numpy as np
 import time
 from typing import List, Dict, Tuple
 
-class GeometricSIA(SIA):
+class KGeoMIP(SIA):
     def __init__(self, gestor: Manager):
         super().__init__(gestor)
         profiler_manager.start_session(

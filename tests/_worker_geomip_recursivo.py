@@ -1,5 +1,5 @@
 """
-Worker de GeoMIP Recursivo (GeometricSIA). Recibe parámetros JSON por argv[1], imprime resultado JSON a stdout.
+Worker de KGeoMIP. Recibe parámetros JSON por argv[1], imprime resultado JSON a stdout.
 Ejecutado como subprocess aislado por run_batch.py.
 """
 import json
@@ -37,10 +37,10 @@ else:
     tpm = np.random.randint(2, size=(2**N, N), dtype=np.int8).astype(float)
 
 from src.controllers.manager import Manager
-from src.controllers.strategies.geometric import GeometricSIA
+from src.controllers.strategies.geometric import KGeoMIP
 
 gestor = Manager(estado_inicial=estado_inicial)
-resultados = GeometricSIA(gestor).aplicar_estrategia(
+resultados = KGeoMIP(gestor).aplicar_estrategia(
     condicion=condicion_bin,
     alcance=alcance_bin,
     mecanismo=mecanismo_bin,

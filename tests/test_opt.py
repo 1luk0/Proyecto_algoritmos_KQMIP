@@ -13,7 +13,7 @@ N = 10
 np.random.seed(73)
 tpm = np.random.randint(2, size=(2**N, N), dtype=np.int8).astype(float)
 
-from src.strategies.q_nodes import QNodes
+from src.strategies.q_nodes import KQNodes
 
 estado     = "1" * N
 condicion  = "1" * N
@@ -25,7 +25,7 @@ print(f"\n{'='*60}")
 print(f"  N={N}  alc=ABCDEFGHIJ  mec=ABCDEFGHIJ  ks={ks}")
 print(f"{'='*60}")
 
-q = QNodes(tpm)
+q = KQNodes(tpm)
 t0 = time.perf_counter()
 resultados = q.aplicar_estrategia(estado, condicion, alcance, mecanismo, ks=ks)
 t1 = time.perf_counter()

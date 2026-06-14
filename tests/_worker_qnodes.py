@@ -1,5 +1,5 @@
 """
-Worker de QNodes. Recibe parámetros JSON por argv[1], imprime resultado JSON a stdout.
+Worker de KQNodes. Recibe parámetros JSON por argv[1], imprime resultado JSON a stdout.
 Ejecutado como subprocess aislado por run_batch.py.
 """
 import json
@@ -34,9 +34,9 @@ else:
     np.random.seed(semilla)
     tpm = np.random.randint(2, size=(2**N, N), dtype=np.int8).astype(float)
 
-from src.strategies.q_nodes import QNodes
+from src.strategies.q_nodes import KQNodes
 
-q = QNodes(tpm)
+q = KQNodes(tpm)
 t0 = time.time()
 resultados = q.aplicar_estrategia(
     estado_inicial,
