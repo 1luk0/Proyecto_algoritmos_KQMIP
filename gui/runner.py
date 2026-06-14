@@ -11,7 +11,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
-ROOT          = Path(__file__).resolve().parent
+ROOT          = Path(__file__).resolve().parent.parent
 WORKER_QNODES = ROOT / "tests" / "_worker_qnodes.py"
 WORKER_GEOMIP = ROOT / "tests" / "_worker_geomip_recursivo.py"
 ABECEDARY     = "ABCDEFGHIJKLMNOPQRSTUVWXY"
