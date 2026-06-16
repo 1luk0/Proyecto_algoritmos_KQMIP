@@ -64,6 +64,6 @@ docs/                 # Fuentes LaTeX y scripts de análisis
 | n = 15 | 0.10–2.6 s | 0.01–1.4 s | 0.6–10 s |
 | n = 20 | 0.3–226 s | 0.05–115 s | ~5–20 min* |
 | n = 22 | 0.5–311 s | 0.08–330 s | ~30 min–2 h* |
-| n = 25 | ~40 min* | 0.2–7 s | >2 h* |
+| n = 25 | ~40 min* | ~35 min | >2 h* |
 
 \* Estimado. KGeoMIP es el más rápido para sistemas grandes.
