@@ -1,87 +1,69 @@
-# Proyecto-20261
+# KQMIP — Analizador de Integración de Información (IIT)
 
-Este repositorio contiene tres implementaciones principales para el analisis de MIP/IIT:
+Implementación de tres algoritmos para calcular la k-Partición de Mínima Información Pérdida (k-MIP) sobre sistemas de Teoría de Información Integrada (IIT 3.0):
 
-1. `QNodes` (base clasica, antes referida como Proyecto-2025A)
-2. `GeoMIP/src/Method2_Dynamic_Programming_Reformulation`
+| Algoritmo | Descripción |
+|---|---|
+| **KQNodes** | Búsqueda exacta por fusión de nodos (cross-partitions) |
+| **KGeoMIP** | Búsqueda geométrica recursiva (node-partitions, EMD Wasserstein-1) |
+| **GeoMIP Genético** | Optimización genética sobre node-partitions |
 
 ## Requisitos
 
-- Linux (probado en Ubuntu)
-- Python 3.11+ (hay entornos locales con 3.12)
-- `uv` instalado
-
-Instalacion de `uv` (si no lo tienes):
+- Python 3.11+
+- Windows (probado en Windows 11)
 
 ```bash
-pip install uv
+pip install -r requirements.txt
 ```
 
-## Estructura Rapida
+## Uso
 
-- `QNodes/`: ejecucion directa de un caso de prueba (`exec.py`).
-- `GeoMIP/src/Method1_GPU_Accelerated/`: procesamiento por lotes desde Excel.
-- `GeoMIP/src/Method2_Dynamic_Programming_Reformulation/`: procesamiento por lotes desde Excel.
-- `GeoMIP/data/samples/`: datasets TPM `N*.csv` usados por Method1/Method2.
-- `GeoMIP/results/`: archivos Excel de entrada/salida para Method1/Method2.
-
-## 1) Ejecutar QNodes
-
-### Dependencias
-
-Desde `QNodes/`:
+### GUI interactiva
 
 ```bash
-cd QNodes
-uv sync
+python main.py
 ```
 
-### Ejecucion
+Permite configurar TPM, estado inicial, alcance, mecanismo, algoritmo y k desde una interfaz gráfica. Los resultados se muestran en pantalla y se pueden exportar a Excel.
+
+### Por lotes (línea de comandos)
 
 ```bash
-uv run exec.py
+python scripts/run_batch.py
 ```
 
-### Que hace
+Procesa múltiples pruebas desde un archivo Excel y guarda resultados en `results/`.
 
-- Carga una red desde `QNodes/src/.samples/` (segun el estado inicial y pagina configurada).
-- Ejecuta estrategia `BruteForce` desde `QNodes/src/main.py`.
-- Imprime la solucion en consola.
+## Estructura del proyecto
 
-### Ajustes comunes
-
-Edita `QNodes/src/main.py`:
-
-- `estado_inicial`
-- `condiciones`
-- `alcance`
-- `mecanismo`
-
-Si termina muy rapido, no necesariamente es error: puede ser un caso pequeno o corte temprano cuando `phi = 0`.
-
-## 3) Ejecutar Method2_Dynamic_Programming_Reformulation
-
-### Dependencias
-
-Desde `GeoMIP/src/Method2_Dynamic_Programming_Reformulation/`:
-
-```bash
-cd GeoMIP/src/Method2_Dynamic_Programming_Reformulation
-uv sync
+```
+main.py               # Punto de entrada — lanza la GUI
+requirements.txt      # Dependencias
+gui/                  # Interfaz gráfica (CustomTkinter)
+  app.py              # Ventana principal
+  runner.py           # Ejecución subprocess de algoritmos
+  validator.py        # Validación de parámetros
+  logica/             # Workers por algoritmo
+scripts/
+  run_batch.py        # Ejecución por lotes
+results/              # Resultados generados (Excel, gráficos)
+Entregables/          # Documentación final del proyecto
+  manual_tecnico.pdf
+  manual_de_usuario.pdf
+  Documento_de_Analisis.pdf
+  DatosPruebas2026_1_analisis.xlsx
+docs/                 # Fuentes LaTeX y scripts de análisis
 ```
 
-### Ejecucion
+## Algoritmos — tiempos orientativos (alcance = sistema completo)
 
-```bash
-uv run exec.py
-```
+| Sistema | KQNodes | KGeoMIP | Genético |
+|---|---|---|---|
+| n = 10 | 0.03–0.15 s | <0.01–0.06 s | 0.3–2.5 s |
+| n = 15 | 0.10–2.6 s | 0.01–1.4 s | 0.6–10 s |
+| n = 20 | 0.3–226 s | 0.05–115 s | ~5–20 min* |
+| n = 22 | 0.5–311 s | 0.08–330 s | ~30 min–2 h* |
+| n = 25 | ~40 min* | 0.2–7 s | >2 h* |
 
-### Entrada por defecto
-
-- Excel entrada: `GeoMIP/results/Pruebas_Metodo2.xlsx`
-- Hoja usada actualmente: indice `8`
-- Columna subsistema: `B`
-
-### Salida por defecto
-
-- Excel salida: `GeoMIP/results/resultados_Geometric.xlsx`
+\* Estimado. KGeoMIP es el más rápido para sistemas grandes.
